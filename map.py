@@ -6,7 +6,6 @@ import time
 from threading import Thread
 import logging
 import json
-import cv2
 import numpy as np
 import random, math
 import matplotlib.pyplot as plt
@@ -264,13 +263,7 @@ def new_client(client_index, client_sock, client_addr):
                     break
                     
             elif header == bytearray([2]): # Get sensors data
-                # try:
-                # 	image = receive(client_sock, IMAGE_PACKET_SIZE)
-                # 	nparr = np.frombuffer(image, np.uint8)
-                # 	img_np = cv2.imdecode(nparr, cv2.IMREAD_COLOR)  # convert numpy array to image
-
-                # except:
-                # 	pass
+               
                 try:
                     sensor = receive(client_sock, SENSORS_PACKET_SIZE)
                 except socket.timeout as err:
