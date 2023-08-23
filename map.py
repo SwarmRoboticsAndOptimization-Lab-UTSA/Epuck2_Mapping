@@ -93,6 +93,17 @@ def new_client(client_index, client_sock, client_addr):
     trials = 0
     sensors = bytearray([0] * SENSORS_PACKET_SIZE)
     socket_error = 0
+    all_ir_readings = []
+    robot_position = [5.0,5.0]
+    map_width = 100
+    map_height = 100
+    grid_resolution = 0.1
+    max_sensor_distance = 0.06  # 6 cm in meters
+
+    # Initialize the occupancy grid
+    grid_rows = int(map_height  / grid_resolution)
+    grid_cols = int(map_width  / grid_resolution)               
+    occupancy_grid = np.zeros((grid_rows, grid_cols))
     
     def get_motor_bytes(speed):
         LSB = speed & 0xFF
@@ -295,23 +306,11 @@ def new_client(client_index, client_sock, client_addr):
 
                 # Here goes your controller.
                 # Desired speeds
-                des_speed_right = 50
-                des_speed_left = 50 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
-                map_width = 10
-                map_height = 10
-                grid_resolution = 0.1
-                max_sensor_distance = 0.06  # 6 cm in meters
-
-                # Initialize the occupancy grid
-                grid_rows = int(map_height  / grid_resolution)
-                grid_cols = int(map_width  / grid_resolution)               
-                occupancy_grid = np.zeros((grid_rows, grid_cols))
-                
-                robot_position = [5.0,5.0]
+                des_speed_right = 0
+                des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
+               
                 robot_speed = 0.05
                 update_interval = 0.1
-
-                all_ir_readings = []
 
                 # Get motor bytes
                 right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
@@ -329,7 +328,7 @@ def new_client(client_index, client_sock, client_addr):
                     sensor_x = robot_position[0] + normalized_distance * np.cos(np.radians(angle * 45))
                     sensor_y = robot_position[1] + normalized_distance * np.sin(np.radians(angle * 45))
 
-                    plt.scatter(sensor_x, sensor_y, color='lime', s=50)  # Bright color and bigger size
+                    plt.scatter(sensor_x, sensor_y, color='lime', s=10)  # Bright color and bigger size
 
                     # Convert position to grid coordinates
                     grid_row = int(sensor_y / grid_resolution)
@@ -342,8 +341,16 @@ def new_client(client_index, client_sock, client_addr):
                     if 0 <= grid_row < grid_rows and 0 <= grid_col < grid_cols:
                         occupancy_grid[grid_row][grid_col] = 1.0 if normalized_distance < 0.03 else 0.3
 
+                all_ir_readings.append(ir_readings)
+                #import csv
 
-                # Visualize the occupancy grid
+                # with open('ir_readings.csv', 'a', newline='') as csvfile:
+                #     writer = csv.writer(csvfile)
+                #     writer.writerow(ir_readings)
+
+
+                #print(len(all_ir_readings))      
+                 # Visualize the occupancy grid
                 plt.imshow(occupancy_grid, cmap='gray', origin='lower', extent=(0, map_width, 0, map_height))
                 plt.colorbar()
                 plt.scatter(robot_position[0], robot_position[1], color='red', label='Robot Position')
@@ -353,7 +360,6 @@ def new_client(client_index, client_sock, client_addr):
                 plt.legend()
                 plt.show()               
 
-                
                 num_packets[client_index] += 1
                 # print(num_packets)
                         
