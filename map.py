@@ -81,7 +81,6 @@ def receive(s, msg_len):
 # The thread is responsible of: initiating and maintaining the communication; interpreting the data received and controlling the robot based on these data.
 # Some global variables are used. In the thread these variables are accessed based on the "index" passed as argument.
 def new_client(client_index, client_sock, client_addr):
-    
     global command
     global proximity
     global gyro
@@ -93,9 +92,9 @@ def new_client(client_index, client_sock, client_addr):
     sensors = bytearray([0] * SENSORS_PACKET_SIZE)
     socket_error = 0
     all_ir_readings = []
-    robot_position = [5.0,5.0]
-    map_width = 100
-    map_height = 100
+    map_width = 20
+    map_height = 20
+    robot_position = [map_width/2,map_height/2]
     grid_resolution = 0.1
     max_sensor_distance = 0.06  # 6 cm in meters
 
@@ -302,7 +301,7 @@ def new_client(client_index, client_sock, client_addr):
                 des_speed_right = 0
                 des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
                
-                robot_speed = 0.05
+                robot_speed = 0.0
                 update_interval = 0.1
 
                 # Get motor bytes
@@ -314,36 +313,40 @@ def new_client(client_index, client_sock, client_addr):
                 command[client_index][6] = right_motor_MSB		# right motor MSB
 
                 ir_readings = proximity[0]
+
                 for angle, ir_reading in enumerate(ir_readings):
-                    normalized_distance = (ir_reading / 1000) * max_sensor_distance
+                    if ir_reading > 200:
+                        ir_reading = 2
+                         
+                        # Calculate position in the direction of the sensor reading
+                        sensor_x = robot_position[0] + ir_reading * np.cos(np.radians(angle * 45))
+                        sensor_y = robot_position[1] + ir_reading * np.sin(np.radians(angle * 45))
+                                            
+                        # Convert position to grid coordinates
+                        grid_row = int(sensor_y / grid_resolution)
+                        grid_col = int(sensor_x / grid_resolution)
 
-                    # Calculate position in the direction of the sensor reading
-                    sensor_x = robot_position[0] + normalized_distance * np.cos(np.radians(angle * 45))
-                    sensor_y = robot_position[1] + normalized_distance * np.sin(np.radians(angle * 45))
+                        occupancy_grid[grid_row][grid_col] = 0.9 if ir_reading < 1.0 else 0.1
+                                    
+                # # Update the robot's position based on movement. This is a very basic motion model.
+                # robot_position[0] += robot_speed * update_interval * math.cos(gyro[0][2])  # using the Z gyro reading as a heading
+                # robot_position[1] += robot_speed * update_interval * math.sin(gyro[0][2])
 
-                    plt.scatter(sensor_x, sensor_y, color='lime', s=10)  # Bright color and bigger size
+                # # Convert robot's position to grid coordinates
+                # robot_grid_x = int(robot_position[0] / grid_resolution)
+                # robot_grid_y = int(robot_position[1] / grid_resolution)
 
-                    # Convert position to grid coordinates
-                    grid_row = int(sensor_y / grid_resolution)
-                    grid_col = int(sensor_x / grid_resolution)
+                # # If robot's position is within the grid, mark it's current position
+                # if 0 <= robot_grid_x < grid_cols and 0 <= robot_grid_y < grid_rows:
+                #     occupancy_grid[robot_grid_y][robot_grid_x] = 0.5  # marking robot's position
 
-                    robot_position[0] += robot_speed * 1
-                    robot_position[1] += robot_speed * 1
 
-                    # Update occupancy grid
-                    if 0 <= grid_row < grid_rows and 0 <= grid_col < grid_cols:
-                        occupancy_grid[grid_row][grid_col] = 1.0 if normalized_distance < 0.03 else 0.3
-
-                all_ir_readings.append(ir_readings)
-                #import csv
-
-                # with open('ir_readings.csv', 'a', newline='') as csvfile:
-                #     writer = csv.writer(csvfile)
-                #     writer.writerow(ir_readings)
-
+                # all_ir_readings.append(ir_readings)
 
                 #print(len(all_ir_readings))      
-                 # Visualize the occupancy grid
+                # Visualize the occupancy grid
+                #plt.imsave("occupancy_grid.png", occupancy_grid)
+
                 plt.imshow(occupancy_grid, cmap='gray', origin='lower', extent=(0, map_width, 0, map_height))
                 plt.colorbar()
                 plt.scatter(robot_position[0], robot_position[1], color='red', label='Robot Position')
@@ -351,7 +354,10 @@ def new_client(client_index, client_sock, client_addr):
                 plt.ylabel('Y (meters)')
                 plt.title('Occupancy Grid Map with IR Readings')
                 plt.legend()
-                plt.show()               
+                plt.show(block=False)    
+                plt.pause(0.5)           
+                plt.close()
+
 
                 num_packets[client_index] += 1
                 # print(num_packets)
