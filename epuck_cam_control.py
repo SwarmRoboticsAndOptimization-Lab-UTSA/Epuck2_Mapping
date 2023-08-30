@@ -1,57 +1,77 @@
 import cv2
 import numpy as np
 import tensorflow as tf
+from obj_det_utils.utils import *
 
 # Initialize OpenCV video capture
 cap = cv2.VideoCapture(0)  # 0 is the default camera
 
-# Initialize TFLite interpreter
-interpreter = tf.lite.Interpreter(model_path="epuck_detector_model\model.tflite")
-interpreter.allocate_tensors()
+# # Load the TFLite model
+options = ObjectDetectorOptions(
+    num_threads=4,
+    score_threshold=0.5,
+)
+detector = ObjectDetector(model_path='epuck_detector_model/model.tflite', options=options)
 
-# Get input and output details
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+
+_MARGIN = 10  # pixels
+_ROW_SIZE = 10  # pixels
+_FONT_SIZE = 1
+_FONT_THICKNESS = 1
+_TEXT_COLOR = (0, 0, 255)  # red
+
+def visualize(
+    image: np.ndarray,
+    detections: List[Detection],
+) -> np.ndarray:
+  """Draws bounding boxes on the input image and return it.
+  Args:
+    image: The input RGB image.
+    detections: The list of all "Detection" entities to be visualize.
+  Returns:
+    Image with bounding boxes.
+  """
+  for detection in detections:
+    # Draw bounding_box
+    start_point = detection.bounding_box.left, detection.bounding_box.top
+    end_point = detection.bounding_box.right, detection.bounding_box.bottom
+    cv2.rectangle(image, start_point, end_point, _TEXT_COLOR, 3)
+
+    # Draw label and score
+    category = detection.categories[0]
+    class_name = category.label
+    probability = round(category.score, 2)
+    result_text = class_name + ' (' + str(probability) + ')'
+    text_location = (_MARGIN + detection.bounding_box.left,
+                     _MARGIN + _ROW_SIZE + detection.bounding_box.top)
+    cv2.putText(image, result_text, text_location, cv2.FONT_HERSHEY_PLAIN,
+                _FONT_SIZE, _TEXT_COLOR, _FONT_THICKNESS)
+
+  return image
+
+frame_count = 0  # To generate unique file names for saved frames
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
-    
-    # Preprocess the frame (resize and reshape)
-    input_shape = input_details[0]['shape']
-    input_data = cv2.resize(frame, (input_shape[1], input_shape[2]))
-    input_data = np.expand_dims(input_data, axis=0)
 
-    #Change data type to UINT8
-    input_data = input_data.astype(np.uint8)
-    
-    # Set input tensor
-    interpreter.set_tensor(input_details[0]['index'], input_data)
-    
-    # Run inference
-    interpreter.invoke()
-    
-    # Get output tensor
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    print("Output shape:", output_data.shape)
 
-    # Post-process the output (you'll need to adjust this based on your model and what you want to detect)
-    # detection_boxes = output_data[0, :, :4]
-    # detection_scores = output_data[0, :, 4]
-    
-    # # Draw bounding boxes (again, this may need to be adjusted based on your model)
-    # for i, score in enumerate(detection_scores):
-    #     if score > 0.5:  # Adjust confidence threshold
-    #         box = detection_boxes[i]
-    #         y1, x1, y2, x2 = (box * [frame.shape[0], frame.shape[1], frame.shape[0], frame.shape[1]]).astype(int)
-    #         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-    
+    # # Run object detection estimation using the model.
+    # detections = detector.detect(frame)
+    # # Draw keypoints and edges on input image
+    # image_np = visualize(frame, detections)
     # #Display frame
-    # cv2.imshow('Object Detection', frame)
-    
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    cv2.imshow('Object Detection', frame)
+
+    key = cv2.waitKey(1)
+    if key & 0xFF == ord('q'):
         break
+    elif key & 0xFF == ord('p'):  # Save frame when 'p' is pressed
+        file_name = f'saved_frame_{frame_count}.jpg'
+        cv2.imwrite(file_name, frame)
+        print(f"Saved {file_name}")
+        frame_count += 1
 
 # Release video capture and close windows
 cap.release()
