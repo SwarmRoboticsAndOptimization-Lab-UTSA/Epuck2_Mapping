@@ -33,9 +33,21 @@ def visualize(
   """
   for detection in detections:
     # Draw bounding_box
-    start_point = detection.bounding_box.left, detection.bounding_box.top
-    end_point = detection.bounding_box.right, detection.bounding_box.bottom
-    cv2.rectangle(image, start_point, end_point, _TEXT_COLOR, 3)
+    left, top = int(detection.bounding_box.left), int(detection.bounding_box.top)
+    right, bottom = int(detection.bounding_box.right), int(detection.bounding_box.bottom)
+
+    point1 = (left, bottom)
+    point2 = (right, bottom)
+    point3 = ((left + right) // 2, top)
+    
+    pts = np.array([point1, point2, point3, point1], np.int32)
+    pts = pts.reshape((-1, 1, 2))
+
+    cv2.polylines(image, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+
+    # start_point = detection.bounding_box.left, detection.bounding_box.top
+    # end_point = detection.bounding_box.right, detection.bounding_box.bottom
+    # cv2.rectangle(image, start_point, end_point, _TEXT_COLOR, 3)
 
     # Draw label and score
     category = detection.categories[0]
@@ -58,9 +70,9 @@ while True:
 
 
     # # Run object detection estimation using the model.
-    # detections = detector.detect(frame)
+    detections = detector.detect(frame)
     # # Draw keypoints and edges on input image
-    # image_np = visualize(frame, detections)
+    image_np = visualize(frame, detections)
     # #Display frame
     cv2.imshow('Object Detection', frame)
 
