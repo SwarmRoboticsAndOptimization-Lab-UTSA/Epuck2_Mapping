@@ -14,8 +14,8 @@ options = ObjectDetectorOptions(
 detector = ObjectDetector(model_path='epuck_detector_model/model.tflite', options=options)
 
 
-_MARGIN = 10  # pixels
-_ROW_SIZE = 10  # pixels
+_MARGIN = 5  # pixels
+_ROW_SIZE = 5  # pixels
 _FONT_SIZE = 1
 _FONT_THICKNESS = 1
 _TEXT_COLOR = (0, 0, 255)  # red
@@ -67,7 +67,6 @@ while True:
     ret, frame = cap.read()
     if not ret:
         break
-
 
     # # Run object detection estimation using the model.
     detections = detector.detect(frame)

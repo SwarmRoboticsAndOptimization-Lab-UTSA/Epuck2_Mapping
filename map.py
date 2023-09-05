@@ -1,16 +1,12 @@
 #!/usr/bin/env python
-
 import socket
-import sys
 import time
 from threading import Thread
 import logging
-import json
 import numpy as np
-import random, math
-import matplotlib.pyplot as plt
-
-from filelock import FileLock
+import cv2
+import tensorflow as tf
+from obj_det_utils.utils import *
 
 ###############
 ## CONSTANTS ##
@@ -50,6 +46,69 @@ led_state = [0 for x in range(NUM_ROBOTS)]
 num_packets = [0 for x in range(NUM_ROBOTS)]
 
 expected_recv_packets = 0
+
+######################
+## OBJECT DETECTION ##
+######################
+
+# Initialize OpenCV video capture
+cap = cv2.VideoCapture(0)  # 0 is the default camera
+
+# # Load the TFLite model
+options = ObjectDetectorOptions(
+    num_threads=4,
+    score_threshold=0.5,
+)
+detector = ObjectDetector(model_path='epuck_detector_model/model.tflite', options=options)
+
+_MARGIN = 5  # pixels
+_ROW_SIZE = 5  # pixels
+_FONT_SIZE = 1
+_FONT_THICKNESS = 1
+_TEXT_COLOR = (0, 0, 255)  # red
+
+def visualize(
+    image: np.ndarray,
+    detections: List[Detection],
+) -> np.ndarray:
+  """Draws bounding boxes on the input image and return it.
+  Args:
+    image: The input RGB image.
+    detections: The list of all "Detection" entities to be visualize.
+  Returns:
+    Image with bounding boxes.
+  """
+  for detection in detections:
+    # Draw bounding_box
+    left, top = int(detection.bounding_box.left), int(detection.bounding_box.top)
+    right, bottom = int(detection.bounding_box.right), int(detection.bounding_box.bottom)
+
+    point1 = (left, bottom)
+    point2 = (right, bottom)
+    point3 = ((left + right) // 2, top)
+    
+    pts = np.array([point1, point2, point3, point1], np.int32)
+    pts = pts.reshape((-1, 1, 2))
+
+    cv2.polylines(image, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+
+    # start_point = detection.bounding_box.left, detection.bounding_box.top
+    # end_point = detection.bounding_box.right, detection.bounding_box.bottom
+    # cv2.rectangle(image, start_point, end_point, _TEXT_COLOR, 3)
+
+    # Draw label and score
+    category = detection.categories[0]
+    class_name = category.label
+    probability = round(category.score, 2)
+    result_text = class_name + ' (' + str(probability) + ')'
+    text_location = (_MARGIN + detection.bounding_box.left,
+                     _MARGIN + _ROW_SIZE + detection.bounding_box.top)
+    cv2.putText(image, result_text, text_location, cv2.FONT_HERSHEY_PLAIN,
+                _FONT_SIZE, _TEXT_COLOR, _FONT_THICKNESS)
+
+  return image
+
+frame_count = 0  # To generate unique file names for saved frames
 
 
 #############################
@@ -91,18 +150,16 @@ def new_client(client_index, client_sock, client_addr):
     trials = 0
     sensors = bytearray([0] * SENSORS_PACKET_SIZE)
     socket_error = 0
-    all_ir_readings = []
-    map_width = 20
-    map_height = 20
-    robot_position = [map_width/2,map_height/2]
-    grid_resolution = 0.1
-    max_sensor_distance = 0.06  # 6 cm in meters
 
-    # Initialize the occupancy grid
-    grid_rows = int(map_height  / grid_resolution)
-    grid_cols = int(map_width  / grid_resolution)               
-    occupancy_grid = np.zeros((grid_rows, grid_cols))
-    
+    #Robot desired Locations
+    desired_location = [120,150]
+        
+    # Initialize PID controllers for left and right wheels
+    pid_left = PIDController(8, 0.1, 0.01, max_output=200, min_output=-200)
+    pid_right = PIDController(8, 0.1, 0.01, max_output=200, min_output=-200)
+
+    prev_time = time.time()
+     
     def get_motor_bytes(speed):
         LSB = speed & 0xFF
         MSB = (speed >> 8) & 0xFF
@@ -280,29 +337,66 @@ def new_client(client_index, client_sock, client_addr):
                     logging.error(err)
                     socket_error = 1
                     break					
-                proximity[client_index][0] = sensor[37] + sensor[38]*256
-                proximity[client_index][1] = sensor[39] + sensor[40]*256
-                proximity[client_index][2] = sensor[41] + sensor[42]*256
-                proximity[client_index][3] = sensor[43] + sensor[44]*256
-                proximity[client_index][4] = sensor[45] + sensor[46]*256
-                proximity[client_index][5] = sensor[47] + sensor[48]*256
-                proximity[client_index][6] = sensor[49] + sensor[50]*256
-                proximity[client_index][7] = sensor[51] + sensor[52]*256
-
-                gyro[client_index][0] = sensor[18]
-                gyro[client_index][1] = sensor[19]
-                gyro[client_index][2] = sensor[20]
-                gyro[client_index][3] = sensor[21]
-                gyro[client_index][4] = sensor[22]
-                gyro[client_index][5] = sensor[23]
 
                 # Here goes your controller.
                 # Desired speeds
                 des_speed_right = 0
                 des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
-               
-                robot_speed = 0.0
-                update_interval = 0.1
+
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                # # Run object detection estimation using the model.
+                detections = detector.detect(frame)
+                # # Draw keypoints and edges on input image
+                #image_np = visualize(frame, detections)
+                # #Display frame
+                for epuck in detections:
+                    category = epuck.categories[0]
+
+                    index = category.index
+                    left, top = int(epuck.bounding_box.left), int(epuck.bounding_box.top)
+                    right, bottom = int(epuck.bounding_box.right), int(epuck.bounding_box.bottom)
+                    #Calculate middle point
+                    middle_x = (left + right) // 2
+                    middle_y = (top + bottom) // 2
+                    location = [middle_x,middle_y]
+
+                cur_time = time.time()
+                dt = cur_time - prev_time
+
+                delta_x = desired_location[0] - location[0]
+                delta_y = desired_location[1] - location[1]
+
+                distance_to_target = np.sqrt(delta_x ** 2 + delta_y ** 2)
+
+                # You can choose your own way to define the error
+                error_left = distance_to_target
+                error_right = distance_to_target
+
+                # Update wheel speeds using PID controllers
+                des_speed_left = pid_left.update(error_left, dt)
+                des_speed_right = pid_right.update(error_right, dt)
+
+                # Ensure speeds stay within -200 to 200 range
+                des_speed_left = int(max(min(des_speed_left, 200), -200))
+                des_speed_right = int(max(min(des_speed_right, 200), -200))
+
+                # Your existing drawing and control code...
+
+                prev_time = cur_time
+
+                circle_radius = 10
+                circle_color = (0, 255, 255)  # Red color in BGR format
+                cv2.circle(frame, desired_location, circle_radius, circle_color, -1)
+
+                cv2.imshow('Object Detection', frame)
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('q'):
+                    des_speed_right = 0
+                    des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
+                    break
 
                 # Get motor bytes
                 right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
@@ -311,52 +405,6 @@ def new_client(client_index, client_sock, client_addr):
                 command[client_index][4] = left_motor_MSB		# left motor MSB
                 command[client_index][5] = right_motor_LSB		# right motor LSB
                 command[client_index][6] = right_motor_MSB		# right motor MSB
-
-                ir_readings = proximity[0]
-
-                for angle, ir_reading in enumerate(ir_readings):
-                    if ir_reading > 200:
-                        ir_reading = 2
-                         
-                        # Calculate position in the direction of the sensor reading
-                        sensor_x = robot_position[0] + ir_reading * np.cos(np.radians(angle * 45))
-                        sensor_y = robot_position[1] + ir_reading * np.sin(np.radians(angle * 45))
-                                            
-                        # Convert position to grid coordinates
-                        grid_row = int(sensor_y / grid_resolution)
-                        grid_col = int(sensor_x / grid_resolution)
-
-                        occupancy_grid[grid_row][grid_col] = 0.9 if ir_reading < 1.0 else 0.1
-                                    
-                # # Update the robot's position based on movement. This is a very basic motion model.
-                # robot_position[0] += robot_speed * update_interval * math.cos(gyro[0][2])  # using the Z gyro reading as a heading
-                # robot_position[1] += robot_speed * update_interval * math.sin(gyro[0][2])
-
-                # # Convert robot's position to grid coordinates
-                # robot_grid_x = int(robot_position[0] / grid_resolution)
-                # robot_grid_y = int(robot_position[1] / grid_resolution)
-
-                # # If robot's position is within the grid, mark it's current position
-                # if 0 <= robot_grid_x < grid_cols and 0 <= robot_grid_y < grid_rows:
-                #     occupancy_grid[robot_grid_y][robot_grid_x] = 0.5  # marking robot's position
-
-
-                # all_ir_readings.append(ir_readings)
-
-                #print(len(all_ir_readings))      
-                # Visualize the occupancy grid
-                #plt.imsave("occupancy_grid.png", occupancy_grid)
-
-                plt.imshow(occupancy_grid, cmap='gray', origin='lower', extent=(0, map_width, 0, map_height))
-                plt.colorbar()
-                plt.scatter(robot_position[0], robot_position[1], color='red', label='Robot Position')
-                plt.xlabel('X (meters)')
-                plt.ylabel('Y (meters)')
-                plt.title('Occupancy Grid Map with IR Readings')
-                plt.legend()
-                plt.show(block=False)    
-                plt.pause(0.5)           
-                plt.close()
 
 
                 num_packets[client_index] += 1
@@ -368,6 +416,10 @@ def new_client(client_index, client_sock, client_addr):
                 print(client_addr + ": unexpected packet\r\n")
                 
             expected_recv_packets -= 1
+                
+    # Release video capture and close windows
+    cap.release()
+    cv2.destroyAllWindows()
 
     client_sock.close()
 

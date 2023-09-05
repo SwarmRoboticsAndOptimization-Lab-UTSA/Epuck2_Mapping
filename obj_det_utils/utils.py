@@ -262,3 +262,29 @@ class ObjectDetector:
 
     return filtered_results
 
+
+class PIDController:
+    def __init__(self, Kp, Ki, Kd, max_output=None, min_output=None):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+        self.max_output = max_output
+        self.min_output = min_output
+        self.prev_error = 0
+        self.integral = 0
+
+    def update(self, error, dt):
+        self.integral += error * dt
+        derivative = (error - self.prev_error) / dt
+
+        output = self.Kp*error + self.Ki*self.integral + self.Kd*derivative
+
+        if self.max_output is not None:
+            output = min(output, self.max_output)
+        if self.min_output is not None:
+            output = max(output, self.min_output)
+
+        self.prev_error = error
+
+        return output
+
