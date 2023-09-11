@@ -7,6 +7,7 @@ from tflite_support import metadata
 import json
 
 import cv2
+import math
 
 Interpreter = tf.lite.Interpreter
 load_delegate = tf.lite.experimental.load_delegate
@@ -287,4 +288,124 @@ class PIDController:
         self.prev_error = error
 
         return output
+
+_MARGIN = 5  # pixels
+_ROW_SIZE = 5  # pixels
+_FONT_SIZE = 1
+_FONT_THICKNESS = 1
+_TEXT_COLOR = (0, 0, 255)  # red
+
+def visualize(
+    image: np.ndarray,
+    detections: List[Detection],
+) -> np.ndarray:                #Function to visualize objects detected might be removed
+  """Draws bounding boxes on the input image and return it.
+  Args:
+    image: The input RGB image.
+    detections: The list of all "Detection" entities to be visualize.
+  Returns:
+    Image with bounding boxes.
+  """
+  for detection in detections:
+    # Draw bounding_box
+    left, top = int(detection.bounding_box.left), int(detection.bounding_box.top)
+    right, bottom = int(detection.bounding_box.right), int(detection.bounding_box.bottom)
+
+    point1 = (left, bottom)
+    point2 = (right, bottom)
+    point3 = ((left + right) // 2, top)
+    
+    pts = np.array([point1, point2, point3, point1], np.int32)
+    pts = pts.reshape((-1, 1, 2))
+
+    cv2.polylines(image, [pts], isClosed=True, color=(0, 255, 0), thickness=3)
+
+    # start_point = detection.bounding_box.left, detection.bounding_box.top
+    # end_point = detection.bounding_box.right, detection.bounding_box.bottom
+    # cv2.rectangle(image, start_point, end_point, _TEXT_COLOR, 3)
+
+    # Draw label and score
+    category = detection.categories[0]
+    class_name = category.label
+    probability = round(category.score, 2)
+    result_text = class_name + ' (' + str(probability) + ')'
+    text_location = (_MARGIN + detection.bounding_box.left,
+                     _MARGIN + _ROW_SIZE + detection.bounding_box.top)
+    cv2.putText(image, result_text, text_location, cv2.FONT_HERSHEY_PLAIN,
+                _FONT_SIZE, _TEXT_COLOR, _FONT_THICKNESS)
+
+  return image
+
+def midpoint(point1, point2): #Function to calculate the mid point between two points
+    x1, y1 = point1
+    x2, y2 = point2
+
+    xm = (x1 + x2) / 2
+    ym = (y1 + y2) / 2
+
+    return (int(xm), int(ym))
+
+# # Example usage:
+# point1 = (1, 2)
+# point2 = (3, 4)
+# print(midpoint(point1, point2))  # Output: (2.0, 3.0)
+
+def calculate_heading(point1, point2): #Function to calculate the heading based on two points
+    x1, y1 = point1
+    x2, y2 = point2
+
+    theta = math.atan2(y2 - y1, x2 - x1)
+    bearing = math.degrees(theta)
+    
+    # Convert from [-180, 180] to [0, 360]
+    if bearing < 0:
+        bearing += 360
+
+    return bearing
+
+# Example usage:
+# point1 = (0, 0)
+# point2 = (1, 1)
+# print(calculate_heading(point1, point2))  # Should be roughly 45.0
+
+def calculate_rotation_direction(current_heading, desired_heading, tolerance=20):
+    # Calculate the angle difference
+    angle_difference = desired_heading - current_heading
+
+    # Normalize the angle difference to -180 to 180 degrees
+    angle_difference = (angle_difference + 180) % 360 - 180
+
+    # Determine the direction to rotate
+    if abs(angle_difference) > tolerance:
+        if angle_difference > 0:
+          rotation_direction = "right"
+        else:
+          rotation_direction = "left"
+    else:
+        rotation_direction = "no rotation"  # Already at the desired angle
+
+    return rotation_direction
+
+#Example usage:
+# current_heading = 30  # Current heading in degrees
+# desired_heading = 150  # Desired heading in degrees
+# rotation_direction = calculate_rotation_direction(current_heading, desired_heading)
+# print(f"Rotate to the {rotation_direction} to reach the desired angle.")
+
+
+def calculate_distance(x1, y1, x2, y2):
+    # Calculate the squared differences in x and y coordinates
+    x_diff_squared = (x2 - x1) ** 2
+    y_diff_squared = (y2 - y1) ** 2
+    
+    # Calculate the sum of squared differences and then take the square root
+    distance = math.sqrt(x_diff_squared + y_diff_squared)
+    
+    return distance
+
+# Example usage:
+# x1, y1 = 0, 0  # Coordinates of the first point
+# x2, y2 = 3, 4  # Coordinates of the second point
+# distance = calculate_distance(x1, y1, x2, y2)
+# print(f"The distance between the two points is {distance:.2f} units.")
 
