@@ -375,8 +375,8 @@ def new_client(client_index, client_sock, client_addr):
                     break
 
                 # Get motor bytes
-                right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
-                left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
+                right_motor_LSB, right_motor_MSB = get_motor_bytes(0)
+                left_motor_LSB, left_motor_MSB = get_motor_bytes(0)
                 command[client_index][3] = left_motor_LSB		# left motor LSB
                 command[client_index][4] = left_motor_MSB		# left motor MSB
                 command[client_index][5] = right_motor_LSB		# right motor LSB
