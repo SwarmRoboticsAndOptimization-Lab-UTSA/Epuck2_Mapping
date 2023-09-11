@@ -62,18 +62,6 @@ cap = cv2.VideoCapture(0)
 #cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 #cap.set(cv2.CAP_PROP_SETTINGS,1)
 
-########################
-## April Tag Detector ##
-########################
-at_detector = Detector(
-    families="tagCustom48h12",
-    nthreads=1,
-    quad_decimate=2.0,
-    quad_sigma=0.0,
-    refine_edges=1,
-    decode_sharpening=0.25,
-    debug=0,
-)
 
 
 #############################
@@ -105,6 +93,19 @@ def receive(s, msg_len):
 # The thread is responsible of: initiating and maintaining the communication; interpreting the data received and controlling the robot based on these data.
 # Some global variables are used. In the thread these variables are accessed based on the "index" passed as argument.
 def new_client(client_index, client_sock, client_addr):
+        
+    ########################
+    ## April Tag Detector ##
+    ########################
+    at_detector = Detector(
+        families="tagCustom48h12",
+        nthreads=1,
+        quad_decimate=2.0,
+        quad_sigma=0.0,
+        refine_edges=1,
+        decode_sharpening=0.25,
+        debug=0,
+    )
     global command
     global proximity
     global gyro
@@ -345,7 +346,7 @@ def new_client(client_index, client_sock, client_addr):
                         robot_dic[str(tag_id)] = [heading,desired_heading,closest_location]
                         taken_locations.append(closest_location)
 
-                if robot_dic:
+                if robot_dic: #TODO I need to check if the robots will go to different directions or will go to the same.
                     for robot_id_ in robot_dic:
 
                         rotation_direction = calculate_rotation_direction(robot_dic[robot_id_][0],robot_dic[robot_id_][1])
@@ -364,8 +365,9 @@ def new_client(client_index, client_sock, client_addr):
 
                         distance_to_goal = calculate_distance(mid[0],mid[1],robot_dic[robot_id_][2][0],robot_dic[robot_id_][2][1])
 
-                    # print("Current location {} Desired Location {}".format(mid,desired_location))
-                    # print("Distance {}".format(distance_to_goal))
+                    #print("Current location {} Desired Location {}".format(mid,desired_location))
+                    print("Distance {}".format(distance_to_goal))
+                    print("rOTATION DIRECTION {}".format(rotation_direction))
 
                     if distance_to_goal <= 20:
                         des_speed_left = 0
@@ -408,6 +410,11 @@ def new_client(client_index, client_sock, client_addr):
     cv2.destroyAllWindows()
 
     client_sock.close()
+
+
+############################
+## COMPUTER VISION THREAD ## #TODO STAND-BY
+############################
 
 # Start a dedicated thread for each robot.
 threads = []
