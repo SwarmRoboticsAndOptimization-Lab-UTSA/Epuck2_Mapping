@@ -28,6 +28,12 @@ def get_args():
     return args
 
 
+def click_event(event, x, y, flags, param):
+    if event == cv.EVENT_LBUTTONDOWN:
+        print(f'({x}, {y})')  # prints the (x,y) coordinates on left button down
+        cv.circle(param, (x, y), 3, (0, 255, 0), -1)  # draws a small circle at the clicked location
+        cv.imshow('Image', param)
+
 def main():
     # 引数解析 #################################################################
     args = get_args()
@@ -93,6 +99,9 @@ def main():
 
         # 画面反映 #############################################################
         cv.imshow('AprilTag Detect Demo', debug_image)
+
+        cv.setMouseCallback('AprilTag Detect Demo', click_event, debug_image)
+
 
     cap.release()
     cv.destroyAllWindows()

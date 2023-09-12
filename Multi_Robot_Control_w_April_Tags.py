@@ -34,6 +34,7 @@ addr = ["192.168.1.102","192.168.1.115"]
 robot_id = ["5792",'5462']
 #Robots Dictionary
 robot_dic = {}
+command_dict = {}
 taken_locations = []
 
 # robot_id = ["4539", "4889", "4787", "4946", "4995", "4523", "4516", "4703", "4704", "4700"]
@@ -93,7 +94,6 @@ def receive(s, msg_len):
 # The thread is responsible of: initiating and maintaining the communication; interpreting the data received and controlling the robot based on these data.
 # Some global variables are used. In the thread these variables are accessed based on the "index" passed as argument.
 def new_client(client_index, client_sock, client_addr):
-        
     ########################
     ## April Tag Detector ##
     ########################
@@ -115,6 +115,8 @@ def new_client(client_index, client_sock, client_addr):
     trials = 0
     sensors = bytearray([0] * SENSORS_PACKET_SIZE)
     socket_error = 0
+    closest_location = None
+
 
     #Robot desired Locations
     desired_location = [[120,150],[300,150]]
@@ -325,7 +327,6 @@ def new_client(client_index, client_sock, client_addr):
                     # corner_03 = (int(corners[2][0]), int(corners[2][1]))
                     # corner_04 = (int(corners[3][0]), int(corners[3][1]))
                     min_distance = float('inf')
-                    closest_location = None
 
                     mid = midpoint(corner_01,corner_02)
 
@@ -340,15 +341,16 @@ def new_client(client_index, client_sock, client_addr):
                         if dist < min_distance:
                             min_distance = dist
                             closest_location = des_loc
+
                     
                     if closest_location is not None:
                         desired_heading = calculate_heading(center,closest_location)
                         robot_dic[str(tag_id)] = [heading,desired_heading,closest_location]
                         taken_locations.append(closest_location)
 
-                if robot_dic: #TODO I need to check if the robots will go to different directions or will go to the same.
+                if robot_dic:
+                    c_ind = 0
                     for robot_id_ in robot_dic:
-
                         rotation_direction = calculate_rotation_direction(robot_dic[robot_id_][0],robot_dic[robot_id_][1])
 
                         if rotation_direction == "no rotation":
@@ -364,19 +366,21 @@ def new_client(client_index, client_sock, client_addr):
                             des_speed_right = -200
 
                         distance_to_goal = calculate_distance(mid[0],mid[1],robot_dic[robot_id_][2][0],robot_dic[robot_id_][2][1])
+                        if distance_to_goal <= 20:
+                            des_speed_left = 0
+                            des_speed_right = 0
 
-                    #print("Current location {} Desired Location {}".format(mid,desired_location))
-                    print("Distance {}".format(distance_to_goal))
-                    print("rOTATION DIRECTION {}".format(rotation_direction))
 
-                    if distance_to_goal <= 20:
-                        des_speed_left = 0
-                        des_speed_right = 0
-                     
+                        command_dict[str(c_ind)] = [des_speed_left, des_speed_right]
+                        c_ind +=1
+                    
+                    
                 cv2.circle(debug_image, [120,150], 10, (0,255,255), -1) #Draw circle goal location
                 cv2.circle(debug_image, [300,150], 10, (255,255,255), -1) #Draw circle goal location
                 
-                cv2.imshow("IMG", debug_image)                
+                cv2.imshow("IMG", debug_image)       
+
+                #print('command_dict ',command_dict)
                 
                 key = cv2.waitKey(1)
                 if key & 0xFF == ord('q'):
@@ -384,17 +388,23 @@ def new_client(client_index, client_sock, client_addr):
                     des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
                     break
 
-                #Temporal
-                des_speed_left = 0
-                des_speed_right = 0
+                # #Temporal
+                #des_speed_left = 0
+                #des_speed_right = 0
+                
                 # Get motor bytes
+                des_speed_left = command_dict[str(client_index)][0]
+                des_speed_right = command_dict[str(client_index)][1]
+
+                #print(command[client_index])
+            
                 right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
                 left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
                 command[client_index][3] = left_motor_LSB		# left motor LSB
                 command[client_index][4] = left_motor_MSB		# left motor MSB
                 command[client_index][5] = right_motor_LSB		# right motor LSB
                 command[client_index][6] = right_motor_MSB		# right motor MSB
-
+            
                 num_packets[client_index] += 1
                 # print(num_packets)
                         
@@ -425,8 +435,8 @@ for x in range(NUM_ROBOTS):
 	time.sleep(1)
 
 # Join all threads.
-#for t in threads:
-#    t.join()
+for t in threads:
+    t.join()
 
 # Main loop: print some information about all the robots every 2 seconds.
 while True:

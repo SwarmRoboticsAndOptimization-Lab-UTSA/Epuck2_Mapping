@@ -60,6 +60,8 @@ expected_recv_packets = 0
 cap = cv2.VideoCapture(0)
 #cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 #cap.set(cv2.CAP_PROP_SETTINGS,1)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
 ########################
 ## April Tag Detector ##
@@ -115,7 +117,7 @@ def new_client(client_index, client_sock, client_addr):
     socket_error = 0
 
     #Robot desired Locations
-    desired_location = [120,150]
+    desired_location = [350,200]
         
     # Initialize PID controllers for left and right wheels
     pid_left = PIDController(0.5, 0.1, 0.01, max_output=200, min_output=-200)
@@ -357,16 +359,17 @@ def new_client(client_index, client_sock, client_addr):
 
                 distance_to_goal = calculate_distance(mid[0],mid[1],desired_location[0],desired_location[1])
 
-                print("Current location {} Desired Location {}".format(mid,desired_location))
-                print("Distance {}".format(distance_to_goal))
+                #print("Current location {} Desired Location {}".format(mid,desired_location))
+                #print("Distance {}".format(distance_to_goal))
 
                 if distance_to_goal <= 20:
                     des_speed_left = 0
                     des_speed_right = 0
                      
                 cv2.circle(debug_image, desired_location, 10, (0,255,255), -1) #Draw circle goal location
-                
-                cv2.imshow("IMG", debug_image)                
+                                
+                cv2.imshow("IMG", debug_image)         
+       
                 
                 key = cv2.waitKey(1)
                 if key & 0xFF == ord('q'):
@@ -374,9 +377,12 @@ def new_client(client_index, client_sock, client_addr):
                     des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
                     break
 
+                # des_speed_right = 0
+                # des_speed_left = 0
+
                 # Get motor bytes
-                right_motor_LSB, right_motor_MSB = get_motor_bytes(0)
-                left_motor_LSB, left_motor_MSB = get_motor_bytes(0)
+                right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
+                left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
                 command[client_index][3] = left_motor_LSB		# left motor LSB
                 command[client_index][4] = left_motor_MSB		# left motor MSB
                 command[client_index][5] = right_motor_LSB		# right motor LSB
