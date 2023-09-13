@@ -57,9 +57,13 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0)
 #cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 #cap.set(cv2.CAP_PROP_SETTINGS,1)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_SETTINGS,1)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
@@ -117,17 +121,9 @@ def new_client(client_index, client_sock, client_addr):
     socket_error = 0
 
     #Robot desired Locations
-    desired_location = [350,200]
-        
-    # Initialize PID controllers for left and right wheels
-    pid_left = PIDController(0.5, 0.1, 0.01, max_output=200, min_output=-200)
-    pid_right = PIDController(0.5, 0.1, 0.01, max_output=200, min_output=-200)
-    prev_location = None
+    desired_location = [350,30]
     heading = None
-    loop_100 = 0
 
-    prev_time = time.time()
-     
     def get_motor_bytes(speed):
         LSB = speed & 0xFF
         MSB = (speed >> 8) & 0xFF
@@ -387,8 +383,6 @@ def new_client(client_index, client_sock, client_addr):
                 command[client_index][4] = left_motor_MSB		# left motor MSB
                 command[client_index][5] = right_motor_LSB		# right motor LSB
                 command[client_index][6] = right_motor_MSB		# right motor MSB
-
-                loop_100 += 1
 
                 num_packets[client_index] += 1
                 # print(num_packets)
