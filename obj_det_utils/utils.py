@@ -409,3 +409,8 @@ def calculate_distance(x1, y1, x2, y2):
 # distance = calculate_distance(x1, y1, x2, y2)
 # print(f"The distance between the two points is {distance:.2f} units.")
 
+
+
+def click_event(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print(f'({x}, {y})')  # prints the (x,y) coordinates on left button down

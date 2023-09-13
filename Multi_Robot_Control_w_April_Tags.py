@@ -59,10 +59,10 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-cap = cv2.VideoCapture(0)
-#cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
-#cap.set(cv2.CAP_PROP_SETTINGS,1)
-
+cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_SETTINGS,1)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
 
 #############################
@@ -119,7 +119,7 @@ def new_client(client_index, client_sock, client_addr):
 
 
     #Robot desired Locations
-    desired_location = [[120,150],[300,150]]
+    desired_location = [[250,25],[825,550]]
         
     def get_motor_bytes(speed):
         LSB = speed & 0xFF
@@ -302,6 +302,7 @@ def new_client(client_index, client_sock, client_addr):
                 # Desired speeds
                 des_speed_right = 0
                 des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
+                des_speeds = {}
 
                 ret, frame = cap.read()
                 if not ret:
@@ -375,10 +376,10 @@ def new_client(client_index, client_sock, client_addr):
                         c_ind +=1
                     
                     
-                cv2.circle(debug_image, [120,150], 10, (0,255,255), -1) #Draw circle goal location
-                cv2.circle(debug_image, [300,150], 10, (255,255,255), -1) #Draw circle goal location
+                cv2.circle(debug_image, desired_location[0], 10, (0,255,255), -1) #Draw circle goal location
+                cv2.circle(debug_image, desired_location[1], 10, (255,255,255), -1) #Draw circle goal location
                 
-                cv2.imshow("IMG", debug_image)       
+                cv2.imshow("IMG", debug_image)
 
                 #print('command_dict ',command_dict)
                 
@@ -393,17 +394,31 @@ def new_client(client_index, client_sock, client_addr):
                 #des_speed_right = 0
                 
                 # Get motor bytes
-                des_speed_left = command_dict[str(client_index)][0]
-                des_speed_right = command_dict[str(client_index)][1]
+                des_speed_right_0 = command_dict[str(0)][1]
+                des_speed_left_0 = command_dict[str(0)][0]
+                des_speed_right_1 = command_dict[str(1)][1]
+                des_speed_left_1 = command_dict[str(1)][0]
 
+                print(des_speed_left_0)
+                print(des_speed_left_1)
                 #print(command[client_index])
-            
-                right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
-                left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
-                command[client_index][3] = left_motor_LSB		# left motor LSB
-                command[client_index][4] = left_motor_MSB		# left motor MSB
-                command[client_index][5] = right_motor_LSB		# right motor LSB
-                command[client_index][6] = right_motor_MSB		# right motor MSB
+                #TODO I need to fix this so that it can talk independently to each robot. CURRENT CODE NOT WORKING 
+                if client_index == 0:
+                    right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right_0)
+                    left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left_0)
+                    command[0][3] = left_motor_LSB		 # left motor LSB
+                    command[0][4] = left_motor_MSB		# left motor MSB
+                    command[0][5] = right_motor_LSB		# right motor LSB
+                    command[0][6] = right_motor_MSB		# right motor MSB
+                
+                else:
+                    right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right_1)
+                    left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left_1)
+                    command[1][3] = left_motor_LSB		# left motor LSB
+                    command[1][4] = left_motor_MSB		# left motor MSB
+                    command[1][5] = right_motor_LSB		# right motor LSB
+                    command[1][6] = right_motor_MSB		# right motor MSB
+
             
                 num_packets[client_index] += 1
                 # print(num_packets)
@@ -421,11 +436,6 @@ def new_client(client_index, client_sock, client_addr):
 
     client_sock.close()
 
-
-############################
-## COMPUTER VISION THREAD ## #TODO STAND-BY
-############################
-
 # Start a dedicated thread for each robot.
 threads = []
 for x in range(NUM_ROBOTS):
@@ -435,8 +445,8 @@ for x in range(NUM_ROBOTS):
 	time.sleep(1)
 
 # Join all threads.
-for t in threads:
-    t.join()
+# for t in threads:
+#     t.join()
 
 # Main loop: print some information about all the robots every 2 seconds.
 while True:
