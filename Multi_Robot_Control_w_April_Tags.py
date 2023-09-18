@@ -32,12 +32,16 @@ addr = ["192.168.1.102","192.168.1.115"]
 # addr = ["192.168.1.238", "192.168.1.126", "192.168.1.127", "192.168.1.128", "192.168.1.129", "192.168.1.130", "192.168.1.131", "192.168.1.132", "192.168.1.133", "192.168.1.134"]
 # Fill the list with the IDs of the robots to which connect (the sequence must reflect the one of the IP addresses)
 robot_id = ["5792",'5462']
+# robot_id = ["4539", "4889", "4787", "4946", "4995", "4523", "4516", "4703", "4704", "4700"]
+
 #Robots Dictionary
 robot_dic = {}
 command_dict = {}
-taken_locations = []
+taken_locations = {}
+#Robot desired Locations
+desired_location = [[250,25],[825,550]]
+display_locations = [[250,25],[825,550]]
 
-# robot_id = ["4539", "4889", "4787", "4946", "4995", "4523", "4516", "4703", "4704", "4700"]
 
 ###############
 ## VARIABLES ##
@@ -116,10 +120,6 @@ def new_client(client_index, client_sock, client_addr):
     sensors = bytearray([0] * SENSORS_PACKET_SIZE)
     socket_error = 0
     closest_location = None
-
-
-    #Robot desired Locations
-    desired_location = [[250,25],[825,550]]
         
     def get_motor_bytes(speed):
         LSB = speed & 0xFF
@@ -334,20 +334,20 @@ def new_client(client_index, client_sock, client_addr):
                     cv2.line(debug_image, (center[0], center[1]),(mid[0], mid[1]), (255, 255, 0), 2)
 
                     heading = calculate_heading(center,mid)
-                    for des_loc in desired_location: #Loop through the available (x,y) locations and  calculate distance
-                        if des_loc in taken_locations:
-                             continue
+
+                    for des_loc in desired_location: #Loop through the available (x,y) locations and  calculate distance                       
                         dist = calculate_distance(mid[0],mid[1],des_loc[0],des_loc[1])
+                        
                         
                         if dist < min_distance:
                             min_distance = dist
                             closest_location = des_loc
+                            taken_locations[str(tag_id)] = closest_location
+                            desired_location.remove(closest_location)
 
-                    
-                    if closest_location is not None:
-                        desired_heading = calculate_heading(center,closest_location)
-                        robot_dic[str(tag_id)] = [heading,desired_heading,closest_location]
-                        taken_locations.append(closest_location)
+                    dist = calculate_distance(mid[0],mid[1],taken_locations[str(tag_id)][0],taken_locations[str(tag_id)][1])
+                    desired_heading = calculate_heading(center,taken_locations[str(tag_id)])
+                    robot_dic[str(tag_id)] = [heading,desired_heading, dist]
 
                 if robot_dic:
                     c_ind = 0
@@ -366,7 +366,7 @@ def new_client(client_index, client_sock, client_addr):
                             des_speed_left = 200
                             des_speed_right = -200
 
-                        distance_to_goal = calculate_distance(mid[0],mid[1],robot_dic[robot_id_][2][0],robot_dic[robot_id_][2][1])
+                        distance_to_goal = robot_dic[robot_id_][2]
                         if distance_to_goal <= 20:
                             des_speed_left = 0
                             des_speed_right = 0
@@ -376,12 +376,10 @@ def new_client(client_index, client_sock, client_addr):
                         c_ind +=1
                     
                     
-                cv2.circle(debug_image, desired_location[0], 10, (0,255,255), -1) #Draw circle goal location
-                cv2.circle(debug_image, desired_location[1], 10, (255,255,255), -1) #Draw circle goal location
+                cv2.circle(debug_image, display_locations[0], 10, (0,255,255), -1) #Draw circle goal location
+                cv2.circle(debug_image, display_locations[1], 10, (255,255,255), -1) #Draw circle goal location
                 
                 cv2.imshow("IMG", debug_image)
-
-                #print('command_dict ',command_dict)
                 
                 key = cv2.waitKey(1)
                 if key & 0xFF == ord('q'):
@@ -394,16 +392,14 @@ def new_client(client_index, client_sock, client_addr):
                 #des_speed_right = 0
                 
                 # Get motor bytes
-                des_speed_right_0 = command_dict[str(0)][1]
-                des_speed_left_0 = command_dict[str(0)][0]
-                des_speed_right_1 = command_dict[str(1)][1]
-                des_speed_left_1 = command_dict[str(1)][0]
+                # print(command_dict)
 
-                print(des_speed_left_0)
-                print(des_speed_left_1)
+                #print(des_speed_left_0)
+                #print(des_speed_left_1)
                 #print(command[client_index])
-                #TODO I need to fix this so that it can talk independently to each robot. CURRENT CODE NOT WORKING 
                 if client_index == 0:
+                    des_speed_right_0 = command_dict[str(0)][1]
+                    des_speed_left_0 = command_dict[str(0)][0]
                     right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right_0)
                     left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left_0)
                     command[0][3] = left_motor_LSB		 # left motor LSB
@@ -411,7 +407,9 @@ def new_client(client_index, client_sock, client_addr):
                     command[0][5] = right_motor_LSB		# right motor LSB
                     command[0][6] = right_motor_MSB		# right motor MSB
                 
-                else:
+                else:   
+                    des_speed_right_1 = command_dict[str(1)][1]
+                    des_speed_left_1 = command_dict[str(1)][0]
                     right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right_1)
                     left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left_1)
                     command[1][3] = left_motor_LSB		# left motor LSB
