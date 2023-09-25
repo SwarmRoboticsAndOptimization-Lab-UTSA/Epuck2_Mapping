@@ -386,15 +386,6 @@ def new_client(client_index, client_sock, client_addr):
                     des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
                     break
 
-                # try:
-                #     des_speed_left = command_dict[str(client_index)][0]
-                #     des_speed_right = command_dict[str(client_index)][1]
-                # except Exception as e:
-                #     #print(client_index, "Exeption", e)
-                #     #print(e.__traceback__.tb_lineno)
-                #     des_speed_left = 0
-                #     des_speed_right = 0
-
                 # print(command_dict)
                 for i in command_dict:
                     i = int(i)
