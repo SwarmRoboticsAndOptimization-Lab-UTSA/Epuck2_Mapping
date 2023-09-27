@@ -5,7 +5,6 @@ from threading import Thread
 import logging
 import numpy as np
 import cv2
-import tensorflow as tf
 from obj_det_utils.utils import *
 from pupil_apriltags import Detector
 import copy
@@ -62,7 +61,11 @@ expected_recv_packets = 0
 #cap.set(cv2.CAP_PROP_SETTINGS,1)
 # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
 # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
-cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+ #THIS JUST WORKS ON WINDOWS
+# cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+#THIS IS FOR UBUNTU v4l2-ctl --list-ctrls THIS COMMAND GIVES A LIST OF CONFIGS v4l2-ctl --set-ctrl brightness=50 THIS TO CHANGE IT
+cap = cv2.VideoCapture(0) 
+
 cap.set(cv2.CAP_PROP_SETTINGS,1)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
