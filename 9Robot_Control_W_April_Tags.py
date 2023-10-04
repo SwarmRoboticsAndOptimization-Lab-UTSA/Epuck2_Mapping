@@ -66,10 +66,11 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_SETTINGS,1)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+# cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+cap = cv2.VideoCapture(0)
+# cap.set(cv2.CAP_PROP_SETTINGS,1)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
 
 #############################
@@ -366,7 +367,7 @@ def new_client(client_index, client_sock, client_addr):
                             des_speed_right = -100
 
                         distance_to_goal = robot_dic[id][2]
-                        if distance_to_goal <= 20:
+                        if distance_to_goal <= 10:
                             des_speed_left = 0
                             des_speed_right = 0
 
