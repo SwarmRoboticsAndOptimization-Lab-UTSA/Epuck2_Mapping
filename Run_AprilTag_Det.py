@@ -51,7 +51,8 @@ def main():
     debug = args.debug
 
     # カメラ準備 ###############################################################
-    cap = cv.VideoCapture(0,cv.CAP_DSHOW)
+    # cap = cv.VideoCapture(0,cv.CAP_DSHOW)
+    cap = cv.VideoCapture(0)
     cap.set(cv.CAP_PROP_SETTINGS,1)
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
