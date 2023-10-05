@@ -66,11 +66,13 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-# cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
-cap = cv2.VideoCapture(0)
-# cap.set(cv2.CAP_PROP_SETTINGS,1)
-# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+
+#cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_SETTINGS,1)
+cap.set(cv2.CAP_PROP_EXPOSURE, -6) 
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
 
 #############################
@@ -348,9 +350,11 @@ def new_client(client_index, client_sock, client_addr):
                     dist = calculate_distance(mid[0],mid[1],taken_locations[str(tag_id)][0],taken_locations[str(tag_id)][1])
                     desired_heading = calculate_heading(center,taken_locations[str(tag_id)])
                     robot_dic[str(tag_id)] = [heading,desired_heading, dist]
+                    # print(tag_id)
                 
                 if robot_dic:
                     c_ind = 0
+                    # print(robot_dic)
                     for id in robot_id:
                         rotation_direction = calculate_rotation_direction(robot_dic[id][0],robot_dic[id][1])
 
@@ -412,12 +416,9 @@ def new_client(client_index, client_sock, client_addr):
                 print(client_addr + ": unexpected packet\r\n")
                 
             expected_recv_packets -= 1
-                
-    # Release video capture and close windows
-    cap.release()
-    cv2.destroyAllWindows()
 
     client_sock.close()
+
 
 # Start a dedicated thread for each robot.
 threads = []
@@ -440,3 +441,7 @@ while True:
 		num_packets[x] = 0
 	print("\r\n")
 
+
+# Release video capture and close windows
+cap.release()
+cv2.destroyAllWindows()
