@@ -27,7 +27,7 @@ TCP_PORT = 1000 # This is fixed.
 ##############################
 NUM_ROBOTS = 1 # Set this value to the number of robots to which connect
 # Fill the list with the IP addresses of the robots to which connect
-addr = ["192.168.1.102"]
+addr = ["192.168.1.101"]
 
 # addr = ["192.168.1.238", "192.168.1.126", "192.168.1.127", "192.168.1.128", "192.168.1.129", "192.168.1.130", "192.168.1.131", "192.168.1.132", "192.168.1.133", "192.168.1.134"]
 # Fill the list with the IDs of the robots to which connect (the sequence must reflect the one of the IP addresses)
