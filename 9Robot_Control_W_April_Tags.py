@@ -66,14 +66,9 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+# cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 
-#cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_SETTINGS,1)
-cap.set(cv2.CAP_PROP_EXPOSURE, -6) 
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
-
+cap = cv2.VideoCapture(0)
 
 #############################
 ## COMMUNICATION FUNCTIONS ##

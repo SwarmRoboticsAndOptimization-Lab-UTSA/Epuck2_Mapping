@@ -6,6 +6,8 @@ import argparse
 
 import cv2 as cv
 from pupil_apriltags import Detector
+import subprocess
+import platform
 
 
 def get_args():
@@ -51,12 +53,13 @@ def main():
     debug = args.debug
 
     # カメラ準備 ###############################################################
-    cap = cv.VideoCapture(0,cv.CAP_DSHOW)
-    # cap = cv.VideoCapture(0)
-    cap.set(cv.CAP_PROP_SETTINGS,1)
-    cap.set(cv.CAP_PROP_EXPOSURE, -6) 
-    cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
-    cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+    # cap = cv.VideoCapture(0,cv.CAP_DSHOW)
+    cap = cv.VideoCapture(0)
+    count = 0
+    # cap.set(cv.CAP_PROP_SETTINGS,1)
+    # cap.set(cv.CAP_PROP_EXPOSURE, -6) 
+    # cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
+    # cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
 
     # Detector準備 #############################################################
     at_detector = Detector(
@@ -101,6 +104,22 @@ def main():
 
         # 画面反映 #############################################################
         cv.imshow('AprilTag Detect Demo', debug_image)
+        count+=1
+
+        if count == 100 and platform.system() == 'Linux':
+            commands = [
+                "v4l2-ctl --set-ctrl=auto_exposure=1",
+                "v4l2-ctl --device=/dev/video0 --set-ctrl=exposure_time_absolute=120",
+                "v4l2-ctl --device=/dev/video0 --set-ctrl=contrast=25",
+                "v4l2-ctl --device=/dev/video0 --set-ctrl=brightness=0"
+            ]
+
+            for command in commands:
+                try:
+                    subprocess.check_call(command, shell=True)
+                except subprocess.CalledProcessError:
+                    print(f"Error executing the command: {command}")
+
 
         cv.setMouseCallback('AprilTag Detect Demo', click_event, debug_image)
 

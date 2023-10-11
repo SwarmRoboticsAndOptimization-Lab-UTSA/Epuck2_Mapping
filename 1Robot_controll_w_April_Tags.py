@@ -8,7 +8,8 @@ import cv2
 from obj_det_utils.utils import *
 from pupil_apriltags import Detector
 import copy
-
+import platform
+import subprocess
 
 ###############
 ## CONSTANTS ##
@@ -56,19 +57,32 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-# cap = cv2.VideoCapture(0)
-#cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
-#cap.set(cv2.CAP_PROP_SETTINGS,1)
-# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
- #THIS JUST WORKS ON WINDOWS
-# cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
 #THIS IS FOR UBUNTU v4l2-ctl --list-ctrls THIS COMMAND GIVES A LIST OF CONFIGS v4l2-ctl --set-ctrl brightness=50 THIS TO CHANGE IT
-cap = cv2.VideoCapture(0) 
+if platform.system() == 'Windows':
+    # Do something specific for Windows
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_SETTINGS,1)
+    cap.set(cv2.CAP_PROP_EXPOSURE, -6) 
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
-cap.set(cv2.CAP_PROP_SETTINGS,1)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+elif platform.system() == 'Linux':
+    lin_commands = [
+        "v4l2-ctl --set-ctrl=auto_exposure=1",
+        "v4l2-ctl --device=/dev/video0 --set-ctrl=exposure_time_absolute=120",
+        "v4l2-ctl --device=/dev/video0 --set-ctrl=contrast=25",
+        "v4l2-ctl --device=/dev/video0 --set-ctrl=brightness=0"
+        ]
+
+    for lin_command in lin_commands:
+        try:
+            subprocess.check_call(lin_command, shell=True)
+        except subprocess.CalledProcessError:
+            print(f"Error executing the command: {lin_command}")
+
+    # Do something specific for Linux
+    cap = cv2.VideoCapture(0)
+
 
 ########################
 ## April Tag Detector ##
