@@ -9,7 +9,8 @@ import tensorflow as tf
 from obj_det_utils.utils import *
 from pupil_apriltags import Detector
 import copy
-
+import platform
+import subprocess
 
 ###############
 ## CONSTANTS ##
@@ -25,26 +26,22 @@ TCP_PORT = 1000 # This is fixed.
 ##############################
 ## TO BE FILLED BY THE USER ##
 ##############################
-NUM_ROBOTS = 9 # Set this value to the number of robots to which connect
+NUM_ROBOTS = 7 # Set this value to the number of robots to which connect
 # Fill the list with the IP addresses of the robots to which connect
-addr = ["192.168.1.100","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.115","192.168.1.116","192.168.1.119","192.168.1.128","192.168.1.139"]
-#addr = ["192.168.1.100","192.168.1.102","192.168.1.103"]
+# addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105","192.168.1.106","192.168.1.107","192.168.1.108"]
+addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105"]
 
-# addr = ["192.168.1.238", "192.168.1.126", "192.168.1.127", "192.168.1.128", "192.168.1.129", "192.168.1.130", "192.168.1.131", "192.168.1.132", "192.168.1.133", "192.168.1.134"]
 # Fill the list with the IDs of the robots to which connect (the sequence must reflect the one of the IP addresses)
-robot_id = ['5664','5792','5662','5790','5462','5788','5387','5739','5663']
-#robot_id = ['5664','5792','5662']
-# robot_id = ["4539", "4889", "4787", "4946", "4995", "4523", "4516", "4703", "4704", "4700"]
+# robot_id = ['5790','5792','5462','5739','5664','5662','5387','5788','5663']
+robot_id = ['5790','5792','5462','5739','5664','5662']
 
 #Robots Dictionary
 robot_dic = {}
+for id in robot_id:#Initiate all values so that robot does not fail if there is no detection
+    robot_dic[id] = [0,360,1000]  # First val is heading, then desired heading, then dist
+
 command_dict = {}
 taken_locations = {}
-#Robot desired Locations #FOR NOW Locations must be in range x (250,825) and y (25, 550)
-
-desired_location = [[282,96],[414,96],[546,96],[813,96],[480,120],[480,205],[480,290],[480,375],[480,548]]
-#desired_location = [[282,96],[414,96],[546,96]]
-display_locations = desired_location.copy()
 
 ###############
 ## VARIABLES ##
@@ -66,9 +63,37 @@ expected_recv_packets = 0
 ######################
 
 # Initialize OpenCV video capture
-# cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+if platform.system() == 'Windows':
+    # Do something specific for Windows
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_SETTINGS,1)
+    cap.set(cv2.CAP_PROP_EXPOSURE, -6) 
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+    #Robot desired Locations #FOR NOW Locations must be in range x (250,825) and y (25, 550)
 
-cap = cv2.VideoCapture(0)
+    desired_location = [[282,96],[414,96],[546,96],[813,96],[480,120],[480,205],[480,290],[480,375],[480,548]]
+    display_locations = desired_location.copy()
+
+
+elif platform.system() == 'Linux':
+    lin_commands = [
+        "v4l2-ctl --set-ctrl=auto_exposure=1",
+        "v4l2-ctl --device=/dev/video0 --set-ctrl=exposure_time_absolute=120",
+        "v4l2-ctl --device=/dev/video0 --set-ctrl=contrast=25",
+        "v4l2-ctl --device=/dev/video0 --set-ctrl=brightness=0"
+        ]
+
+    for lin_command in lin_commands:
+        try:
+            subprocess.check_call(lin_command, shell=True)
+        except subprocess.CalledProcessError:
+            print(f"Error executing the command: {lin_command}")
+    # Do something specific for Linux
+    cap = cv2.VideoCapture(0)
+
+    desired_location = [[160,66],[253,66],[345,66],[438,66],[515,66],[345,148],[345,243],[345,327],[345,412]]
+    display_locations = desired_location.copy()
 
 #############################
 ## COMMUNICATION FUNCTIONS ##
@@ -377,7 +402,6 @@ def new_client(client_index, client_sock, client_addr):
                 for i in display_locations:
                     cv2.circle(debug_image, i, 10, (0,255,255), -1) #Draw circle goal location
                 
-                cv2.imshow("IMG", debug_image)
                 
                 key = cv2.waitKey(1)
                 if key & 0xFF == ord('q'):
@@ -387,12 +411,14 @@ def new_client(client_index, client_sock, client_addr):
 
                 # print(command_dict)
                 for i in command_dict:
+                    print(i)
+                    print('client_sock',client_sock)
                     i = int(i)
                     des_speed_left = command_dict[str(i)][0]
                     des_speed_right = command_dict[str(i)][1]
                     #Temporal
-                    # des_speed_left = 0
-                    # des_speed_right = 0
+                    des_speed_left = 0
+                    des_speed_right = 0
 
                     left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
                     right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
@@ -401,9 +427,28 @@ def new_client(client_index, client_sock, client_addr):
                     command[i][4] = left_motor_MSB     # left motor MSB
                     command[i][5] = right_motor_LSB    # right motor LSB
                     command[i][6] = right_motor_MSB    # right motor MSB
+
+                    # try:
+                    #     send(client_sock, command[client_index], COMMAND_PACKET_SIZE)
+                    # except socket.timeout as err:
+                    #     logging.error("Error from " + client_addr + ":")
+                    #     logging.error(err)
+                    #     socket_error = 1
+                    #     continue
+                    # except socket.error as err:
+                    #     logging.error("Error from " + client_addr + ":")
+                    #     logging.error(err)
+                    #     socket_error = 1
+                    #     continue
+                    # except Exception as err:
+                    #     logging.error("Error from " + client_addr + ":")
+                    #     logging.error(err)
+                    #     socket_error = 1
+                    #     continue			
                 
                     num_packets[client_index] += 1
                 # print(num_packets)
+            
                         
             elif header == bytearray([3]): # Empty ack
                 print(client_addr + " received an empty packet\r\n")
@@ -411,6 +456,7 @@ def new_client(client_index, client_sock, client_addr):
                 print(client_addr + ": unexpected packet\r\n")
                 
             expected_recv_packets -= 1
+            cv2.imshow("IMG", debug_image)
 
     client_sock.close()
 
