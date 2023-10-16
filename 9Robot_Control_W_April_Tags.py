@@ -26,7 +26,7 @@ TCP_PORT = 1000 # This is fixed.
 ##############################
 ## TO BE FILLED BY THE USER ##
 ##############################
-NUM_ROBOTS = 7 # Set this value to the number of robots to which connect
+NUM_ROBOTS = 6 # Set this value to the number of robots to which connect
 # Fill the list with the IP addresses of the robots to which connect
 # addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105","192.168.1.106","192.168.1.107","192.168.1.108"]
 addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105"]
@@ -245,6 +245,7 @@ def new_client(client_index, client_sock, client_addr):
         # Send a command to the robot.
         try:
             send(client_sock, command[client_index], COMMAND_PACKET_SIZE)
+            print("sent ", client_sock, command[client_index])
         except socket.timeout as err:
             logging.error("Error from " + client_addr + ":")
             logging.error(err)
@@ -411,14 +412,14 @@ def new_client(client_index, client_sock, client_addr):
 
                 # print(command_dict)
                 for i in command_dict:
-                    print(i)
-                    print('client_sock',client_sock)
+                    # print(i)
+                    # print('client_sock',client_sock)
                     i = int(i)
                     des_speed_left = command_dict[str(i)][0]
                     des_speed_right = command_dict[str(i)][1]
                     #Temporal
-                    des_speed_left = 0
-                    des_speed_right = 0
+                    #des_speed_left = 0
+                    #des_speed_right = 0
 
                     left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
                     right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
