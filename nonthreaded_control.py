@@ -2,18 +2,15 @@
 import socket
 import time
 from threading import Thread
-from cam_utils import *
 import logging
 import numpy as np
 import cv2
 import tensorflow as tf
 from obj_det_utils.utils import *
-from obj_det_utils.roboDict import *
 from pupil_apriltags import Detector
 import copy
 import platform
 import subprocess
-
 
 ###############
 ## CONSTANTS ##
@@ -26,21 +23,17 @@ MAX_NUM_CONN_TRIALS = 5
 SENS_THRESHOLD = 200
 TCP_PORT = 1000 # This is fixed.
 
-shared_robot_dict = RobotDict()
-
 ##############################
 ## TO BE FILLED BY THE USER ##
 ##############################
-NUM_ROBOTS = 8 # Set this value to the number of robots to which connect
+NUM_ROBOTS = 6 # Set this value to the number of robots to which connect
 # Fill the list with the IP addresses of the robots to which connect
 # addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105","192.168.1.106","192.168.1.107","192.168.1.108"]
-# addr = ["192.168.1.100", "192.168.1.101", "192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105"] #Current
-addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.103","192.168.1.104","192.168.1.105","192.168.1.106","192.168.1.107"] 
+addr = ["192.168.1.100","192.168.1.101","192.168.1.102","192.168.1.106","192.168.1.107","192.168.1.108"]
 
 # Fill the list with the IDs of the robots to which connect (the sequence must reflect the one of the IP addresses)
 # robot_id = ['5790','5792','5462','5739','5664','5662','5387','5788','5663']
-# robot_id = ['5790','5792','5462','5739','5664','5662'] #Current
-robot_id = ['5790','5792','5462','5739','5664','5662','5387','5788']
+robot_id = ['5790','5792','5462','5387','5788','5663']
 
 #Robots Dictionary
 robot_dic = {}
@@ -63,6 +56,7 @@ refresh = [0 for x in range(NUM_ROBOTS)]
 led_state = [0 for x in range(NUM_ROBOTS)]
 num_packets = [0 for x in range(NUM_ROBOTS)]
 continue_command = [True for _ in range(NUM_ROBOTS)]# Array to store flags if a robot should continue receiving commands or not.
+distance_to_goal_list = [None for _ in range(NUM_ROBOTS)] #Array to store distances
 
 expected_recv_packets = 0
 
@@ -98,7 +92,7 @@ elif platform.system() == 'Linux':
         except subprocess.CalledProcessError:
             print(f"Error executing the command: {lin_command}")
     # Do something specific for Linux
-    #cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)
 
     desired_location = [[160,66],[253,66],[345,66],[438,66],[515,66],[345,148],[345,243],[345,327],[345,412]]
     display_locations = desired_location.copy()
@@ -131,19 +125,19 @@ def receive(s, msg_len):
 # One thread is created for each robot.
 # The thread is responsible of: initiating and maintaining the communication; interpreting the data received and controlling the robot based on these data.
 # Some global variables are used. In the thread these variables are accessed based on the "index" passed as argument.
-def new_client(client_index, client_sock, client_addr, shared_robot_dict):
+def new_client(client_index, client_sock, client_addr):
     ########################
     ## April Tag Detector ##
     ########################
-    # at_detector = Detector(
-    #     families="tagCustom48h12",
-    #     nthreads=1,
-    #     quad_decimate=2.0,
-    #     quad_sigma=0.0,
-    #     refine_edges=1,
-    #     decode_sharpening=0.25,
-    #     debug=0,
-    # )
+    at_detector = Detector(
+        families="tagCustom48h12",
+        nthreads=1,
+        quad_decimate=2.0,
+        quad_sigma=0.0,
+        refine_edges=1,
+        decode_sharpening=0.25,
+        debug=0,
+    )
     global command
     global proximity
     global gyro
@@ -220,6 +214,7 @@ def new_client(client_index, client_sock, client_addr, shared_robot_dict):
     print("\r\n")
 
     while True:
+        print(continue_command)
         # If there was some errors in sending or receiving then try to close the connection and reconnect.
         if socket_error == 1:
             socket_error = 0
@@ -250,11 +245,22 @@ def new_client(client_index, client_sock, client_addr, shared_robot_dict):
             if trials == MAX_NUM_CONN_TRIALS:
                 print("Can't reconnect to " + client_addr)
                 break
-        
-        if not continue_command[client_index]:
-            print(client_index, continue_command[client_index])
-            break
 
+        if not continue_command[client_index]:
+            des_speed_right = 0
+            des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
+            left_motor_LSB, left_motor_MSB = get_motor_bytes(des_speed_left)
+            right_motor_LSB, right_motor_MSB = get_motor_bytes(des_speed_right)
+                    
+            command[i][3] = left_motor_LSB      # left motor LSB
+            command[i][4] = left_motor_MSB     # left motor MSB
+            command[i][5] = right_motor_LSB    # right motor LSB
+            command[i][6] = right_motor_MSB    # right motor MSB
+                
+            send(client_sock, command[client_index], COMMAND_PACKET_SIZE)
+            # print(client_index, continue_command[client_index])
+            client_sock.close()
+            break		
         # Send a command to the robot.
         try:
             send(client_sock, command[client_index], COMMAND_PACKET_SIZE)
@@ -272,7 +278,7 @@ def new_client(client_index, client_sock, client_addr, shared_robot_dict):
             logging.error("Error from " + client_addr + ":")
             logging.error(err)
             socket_error = 1
-            continue			
+            continue	
 
         # Set the number of expected packets to receive based on the request done.
         #expected_recv_packets = 2 # Camera and sensors.
@@ -343,54 +349,91 @@ def new_client(client_index, client_sock, client_addr, shared_robot_dict):
                 des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
                 des_speeds = {}
 
-                tags = Camera().get_detected_tags()
-                
-                # robot_dic = shared_robot_dict.get_all()
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                debug_image = copy.deepcopy(frame)
+
+                image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                tags = at_detector.detect(
+                    image,
+                    estimate_tag_pose=False,
+                    camera_params=None,
+                    tag_size=None,
+                )
+
                 for tag in tags:
+                    tag_family = tag.tag_family
                     tag_id = tag.tag_id
                     center = tag.center
                     corners = tag.corners
                     center = (int(center[0]), int(center[1]))
                     corner_01 = (int(corners[0][0]), int(corners[0][1]))
                     corner_02 = (int(corners[1][0]), int(corners[1][1]))
+                    # corner_03 = (int(corners[2][0]), int(corners[2][1]))
+                    # corner_04 = (int(corners[3][0]), int(corners[3][1]))
+                    min_distance = float('inf')
+
                     mid = midpoint(corner_01,corner_02)
+
+                    cv2.line(debug_image, (center[0], center[1]),(mid[0], mid[1]), (255, 255, 0), 2)
+
                     heading = calculate_heading(center,mid)
+
                     distances = [calculate_distance(mid[0],mid[1],des_loc[0],des_loc[1]) for des_loc in desired_location]
-                    if distances: #and (tag_id not in taken_locations):
+                    if distances:
                         min_distance = distances.index(min(distances)) #Get the index of the smallest distance.
                         taken_locations[str(tag_id)] = desired_location[min_distance] #Use index of the smallest distance to update robot desired location
                         desired_location.pop(min_distance)
-
-                    dist = calculate_distance(mid[0],mid[1],taken_locations[str(tag_id)][0],taken_locations[str(tag_id)][1])
-                    desired_heading = calculate_heading(center,taken_locations[str(tag_id)])
-                    robot_dic[str(tag_id)] = [heading, desired_heading, dist]
-
+                    
+                    try:
+                        dist = calculate_distance(mid[0],mid[1],taken_locations[str(tag_id)][0],taken_locations[str(tag_id)][1])
+                        desired_heading = calculate_heading(center,taken_locations[str(tag_id)])
+                        robot_dic[str(tag_id)] = [heading,desired_heading, dist]
+                    except:
+                        pass
+                    # print(tag_id)
+                
                 if robot_dic:
                     c_ind = 0
+                    # print(robot_dic)
                     for id in robot_id:
-                        rotation_direction = calculate_rotation_direction(robot_dic[id][0],robot_dic[id][1])
+                        if robot_id.index(id) == client_index:
+                            distance_to_goal_list[client_index] = robot_dic[id][2]
+                            rotation_direction = calculate_rotation_direction(robot_dic[id][0],robot_dic[id][1])
 
-                        if rotation_direction == "no rotation":
-                            des_speed_left = 150
-                            des_speed_right = 150
+                            if rotation_direction == "no rotation":
+                                des_speed_left = 150
+                                des_speed_right = 150
 
-                        elif rotation_direction == "left":
-                            des_speed_left = -150
-                            des_speed_right = 150
-                        
-                        elif rotation_direction == "right":
-                            des_speed_left = 150
-                            des_speed_right = -150
+                            elif rotation_direction == "left":
+                                des_speed_left = -150
+                                des_speed_right = 150
+                            
+                            elif rotation_direction == "right":
+                                des_speed_left = 150
+                                des_speed_right = -150
 
-                        distance_to_goal = robot_dic[id][2]
+                            # distance_to_goal = robot_dic[id][2]
+                            if distance_to_goal_list[client_index] <= 10:
+                                des_speed_left = 0
+                                des_speed_right = 0
+                                continue_command[client_index] = False  # Set flag to stop sending commands to this robot.
 
-                        if distance_to_goal <= 10:
-                            des_speed_left = 0
-                            des_speed_right = 0
-
-                        command_dict[str(c_ind)] = [des_speed_left, des_speed_right,id]
-                        c_ind +=1
+                            command_dict[str(c_ind)] = [des_speed_left, des_speed_right,id]
+                            c_ind +=1
                                 
+                for i in display_locations:
+                    cv2.circle(debug_image, i, 10, (0,255,255), -1) #Draw circle goal location
+                
+                
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('q'):
+                    des_speed_right = 0
+                    des_speed_left = 0 #500 FORWARD 400 TURN LEFT WHILE MOVING FORWARD
+                    break
+
+                # print(command_dict)
                 for i in command_dict:
                     i = int(i)
                     des_speed_left = command_dict[str(i)][0]
@@ -408,6 +451,8 @@ def new_client(client_index, client_sock, client_addr, shared_robot_dict):
                     command[i][6] = right_motor_MSB    # right motor MSB
                 
                     num_packets[client_index] += 1
+                # print(num_packets)
+            
                         
             elif header == bytearray([3]): # Empty ack
                 print(client_addr + " received an empty packet\r\n")
@@ -415,40 +460,27 @@ def new_client(client_index, client_sock, client_addr, shared_robot_dict):
                 print(client_addr + ": unexpected packet\r\n")
                 
             expected_recv_packets -= 1
+            cv2.imshow("img", debug_image)
 
     client_sock.close()
 
 
 # Start a dedicated thread for each robot.
-threads = []
-camera_instance = Camera()
-
-camera_thread = threading.Thread(target=camera_instance.capture_frames)
-camera_thread.start()
-
-display_thread = threading.Thread(target=camera_instance.display_frame)
-display_thread.start()
-
-tag_processing_thread = threading.Thread(target=camera_instance.process_tags)
-tag_processing_thread.start()
-
-
 for x in range(NUM_ROBOTS):
-	t = Thread(target=new_client, args=(x, sock[x], addr[x], shared_robot_dict))
-	t.start()
-	threads.append(t)
-	time.sleep(1)
-
-# Join all threads.
-# for t in threads:
-#     t.join()
+    #print(x)
+    new_client(x, sock[x], addr[x])
+    time.sleep(1)
 
 # Main loop: print some information about all the robots every 2 seconds.
-while True:
-	time.sleep(2)
-	print("#\tID\tIP\t\tSensor\tActuator\tN.packets")
-	for x in range(NUM_ROBOTS):
-		print(str(x) + "\t" + robot_id[x] + "\t" + addr[x] + "\t" + str(proximity[x][0]) + "\t" + str(led_state[x]) + "\t\t" + str(num_packets[x]))
-		num_packets[x] = 0
-	print("\r\n")
+# while True:
+# 	time.sleep(2)
+# 	print("#\tID\tIP\t\tSensor\tActuator\tN.packets")
+# 	for x in range(NUM_ROBOTS):
+# 		print(str(x) + "\t" + robot_id[x] + "\t" + addr[x] + "\t" + str(proximity[x][0]) + "\t" + str(led_state[x]) + "\t\t" + str(num_packets[x]))
+# 		num_packets[x] = 0
+# 	print("\r\n")
 
+
+# Release video capture and close windows
+cap.release()
+cv2.destroyAllWindows()
